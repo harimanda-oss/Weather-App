@@ -1,0 +1,6 @@
+{
+  "name": "Weather Intelligence App",
+  "description": "Search cities for real-time weather and 7-day forecast with AI-powered planning recommendations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
