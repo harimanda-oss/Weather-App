@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Loader2, MapPin, Droplets, Wind, Sparkles, AlertCircle, CloudRain } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Loader2, MapPin, Droplets, Wind, Sparkles, AlertCircle, CloudRain, Map } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, parseISO } from 'date-fns';
 import { WeatherResponse } from './types';
@@ -10,16 +10,44 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [weatherData, setWeatherData] = useState<WeatherResponse | null>(null);
+  
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cityInput.trim()) return;
+  useEffect(() => {
+    if (!cityInput.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    const fetchCities = async () => {
+      try {
+        const res = await fetch(`/api/cities?q=${encodeURIComponent(cityInput)}`);
+        const data = await res.json();
+        setSuggestions(data.results || []);
+      } catch (err) {
+        console.error("Failed to fetch city suggestions", err);
+      }
+    };
+    const timer = setTimeout(fetchCities, 300);
+    return () => clearTimeout(timer);
+  }, [cityInput]);
 
+  const fetchWeather = async (cityObj?: any) => {
     setLoading(true);
     setError('');
-    
     try {
-      const res = await fetch(`/api/weather?city=${encodeURIComponent(cityInput)}`);
+      let params = new URLSearchParams();
+      if (cityObj) {
+        params.append('city', cityObj.name);
+        params.append('lat', cityObj.latitude.toString());
+        params.append('lon', cityObj.longitude.toString());
+        params.append('country', cityObj.country || '');
+        params.append('admin1', cityObj.admin1 || '');
+      } else {
+        params.append('city', cityInput);
+      }
+      
+      const res = await fetch(`/api/weather?${params.toString()}`);
       const data = await res.json();
       
       if (!res.ok) {
@@ -33,6 +61,20 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cityInput.trim()) return;
+    setShowSuggestions(false);
+    await fetchWeather();
+  };
+
+  const handleSelectCity = (cityObj: any) => {
+    const fullName = `${cityObj.name}${cityObj.admin1 ? `, ${cityObj.admin1}` : ''}`;
+    setCityInput(fullName);
+    setShowSuggestions(false);
+    fetchWeather(cityObj);
   };
 
   return (
@@ -68,6 +110,8 @@ export default function App() {
                 placeholder="Enter city name..."
                 value={cityInput}
                 onChange={(e) => setCityInput(e.target.value)}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 className="w-full pl-12 pr-4 py-4 rounded-full bg-white/5 border border-white/10 backdrop-blur-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg placeholder:text-white/40 text-white shadow-none"
               />
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 w-6 h-6 group-focus-within:text-indigo-400 transition-colors" />
@@ -79,6 +123,35 @@ export default function App() {
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
               </button>
             </div>
+
+            {/* Suggestions Dropdown */}
+            <AnimatePresence>
+              {showSuggestions && suggestions.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute top-full left-0 w-full mt-3 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl overflow-hidden z-50 shadow-2xl flex flex-col"
+                >
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={s.id || i}
+                      type="button"
+                      onClick={() => handleSelectCity(s)}
+                      className="w-full text-left px-5 py-4 hover:bg-white/10 transition-colors text-white border-b border-white/5 last:border-0 flex items-center gap-4"
+                    >
+                      <Map className="w-5 h-5 text-indigo-300 opacity-70" />
+                      <div className="flex flex-col">
+                        <span className="font-medium text-lg leading-tight">{s.name}</span>
+                        <span className="text-sm text-white/60">
+                          {s.admin1 ? `${s.admin1}, ` : ''}{s.country}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
             
             {error && (
               <div className="mt-4 flex items-center justify-center gap-2 text-red-400 bg-red-950/30 border border-red-500/30 py-2 px-4 rounded-full text-sm font-medium backdrop-blur-md">

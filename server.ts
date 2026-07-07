@@ -21,26 +21,56 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Cities Autocomplete Route
+  app.get('/api/cities', async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.length === 0) {
+        res.json({ results: [] });
+        return;
+      }
+      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`;
+      const geoRes = await fetch(geoUrl);
+      const geoData = await geoRes.json();
+      res.json({ results: geoData.results || [] });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to fetch cities' });
+    }
+  });
+
   // API Route
   app.get('/api/weather', async (req, res) => {
     try {
-      const city = req.query.city as string;
-      if (!city) {
-        res.status(400).json({ error: 'City parameter is required' });
+      const { city, lat, lon, country, admin1 } = req.query;
+      if (!city && (!lat || !lon)) {
+        res.status(400).json({ error: 'City or coordinates required' });
         return;
       }
 
-      // 1. Geocoding
-      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
-      const geoRes = await fetch(geoUrl);
-      const geoData = await geoRes.json();
-      
-      if (!geoData.results || geoData.results.length === 0) {
-        res.status(404).json({ error: 'City not found' });
-        return;
+      let location;
+
+      // 1. Geocoding or use provided coordinates
+      if (lat && lon) {
+        location = {
+          latitude: parseFloat(lat as string),
+          longitude: parseFloat(lon as string),
+          name: city as string || 'Unknown',
+          country: country as string || '',
+          admin1: admin1 as string || ''
+        };
+      } else {
+        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city as string)}&count=1&language=en&format=json`;
+        const geoRes = await fetch(geoUrl);
+        const geoData = await geoRes.json();
+        
+        if (!geoData.results || geoData.results.length === 0) {
+          res.status(404).json({ error: 'City not found' });
+          return;
+        }
+        
+        location = geoData.results[0];
       }
-      
-      const location = geoData.results[0];
 
       // 2. Weather
       const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`;
