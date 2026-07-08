@@ -21,7 +21,8 @@ export default function App() {
     }
     const fetchCities = async () => {
       try {
-        const res = await fetch(`/api/cities?q=${encodeURIComponent(cityInput)}`);
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${apiUrl}/api/cities?q=${encodeURIComponent(cityInput)}`);
         const data = await res.json();
         setSuggestions(data.results || []);
       } catch (err) {
@@ -47,7 +48,8 @@ export default function App() {
         params.append('city', cityInput);
       }
       
-      const res = await fetch(`/api/weather?${params.toString()}`);
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/weather?${params.toString()}`);
       const data = await res.json();
       
       if (!res.ok) {

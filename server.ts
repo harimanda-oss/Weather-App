@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import cors from 'cors';
 
 let aiClient: GoogleGenAI | null = null;
 function getAi() {
@@ -19,6 +20,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(cors());
   app.use(express.json());
 
   // Cities Autocomplete Route
